@@ -15,7 +15,10 @@ import { MeasurementModule } from './measurement/measurement.module';
     host: process.env.DB_HOST,
     password: process.env.DB_PASSWORD,
     port: parseInt(process.env.DB_PORT),
-    username: process.env.DB_USERNAME
+    username: process.env.DB_USERNAME,
+    entities: [`${__dirname}/**/*.entity{.js,.ts}`],
+    migrations: [`${__dirname}/migration/{.ts,*.js}`],
+    migrationsRun: true,
   }),
     MeasurementModule
   ],
