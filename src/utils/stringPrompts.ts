@@ -1,0 +1,1 @@
+export const prompt = "Analyze the base64 encoded image given below. Extract the numeric values ​​displayed on the digital readout. Return only the numeric values."
