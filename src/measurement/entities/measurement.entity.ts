@@ -13,13 +13,13 @@ export class Measurement implements IMeasurement {
     measure_type: 'WATER' | 'GAS';
 
     @Column()
-    image: string;
+    image_url: string;
 
     @Column()
     customer_code: string;
 
     @Column('decimal', { precision: 10, scale: 2 })
-    measure_value: number;
+    measure_value: number | null;
 
     @Column({ default: false })
     has_confirmed: boolean;
