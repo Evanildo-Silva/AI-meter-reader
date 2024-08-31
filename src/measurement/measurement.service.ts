@@ -1,11 +1,14 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import axios from 'axios';
+import { saveBase64Image } from 'src/utils/saveBase64Image';
+import { prompt } from 'src/utils/stringPrompts';
 import { Between, Repository } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
+import { ConfirmMeasureOutputDto } from './dto/confirm-measure-output.dto';
+import { ListMeasuresOutputDto } from './dto/list-measures-output.dto';
+import { UploadMeasureOutputDto } from './dto/upload-measure-output.dto';
+import { UploadMeasureDto } from './dto/upload-measure.dto';
 import { Measurement } from './entities/measurement.entity';
-import { IMeasurement } from './interfaces/measurement.interface';
-
 
 @Injectable()
 export class MeasurementService {
@@ -14,7 +17,7 @@ export class MeasurementService {
         private measurementRepository: Repository<Measurement>,
     ) { }
 
-    async createMeasurement(measureData: Omit<IMeasurement, "measure_uuid" | "measure_value" | "has_confirmed">): Promise<Measurement> {
+    async createMeasurement(measureData: UploadMeasureDto): Promise<UploadMeasureOutputDto> {
         const { customer_code, measure_datetime, measure_type, image } = measureData;
         const month = new Date(measure_datetime).getMonth();
         const year = new Date(measure_datetime).getFullYear();
@@ -28,61 +31,114 @@ export class MeasurementService {
         });
 
         if (existingMeasurement) {
-            throw new ConflictException('Measurement already exists for this month');
+            throw new ConflictException({
+                "error_code": "DOUBLE_REPORT",
+                "error_description": "Leitura do mês já realizada"
+            });
         }
 
-        const geminiResponse = await axios.post('https://api.google.com/gemini', { image });
-        const measureValue = geminiResponse.data.value || Math.random() * 100; // Mocked response
-        const measureUUID = uuidv4();
-        const imageUrl = `https://fakeurl.com/${measureUUID}`;
+        const { imageUrl, fileType, imageSplit } = saveBase64Image(image, customer_code)
 
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const result = await model.generateContent([{
+            inlineData: {
+                mimeType: fileType,
+                data: imageSplit
+            }
+        }, prompt]);
+        const measureValue = result.response.text().trim();
+        console.log("==measureValue==", measureValue)
         const measurement = this.measurementRepository.create({
             measure_datetime,
             measure_type,
-            measure_value: measureValue,
+            measure_value: Number(measureValue),
             customer_code,
+            image_url: imageUrl
         });
 
         const savedMeasurement = await this.measurementRepository.save(measurement);
 
-        return savedMeasurement;
+        return {
+            measure_uuid: savedMeasurement.measure_uuid,
+            measure_value: savedMeasurement.measure_value,
+            image_url: savedMeasurement.image_url
+        };
     }
 
-    async confirmMeasurement(measureUUID: string, confirmedValue: number): Promise<void> {
+    async confirmMeasurement(measureUUID: string, confirmedValue: number): Promise<ConfirmMeasureOutputDto> {
         const measurement = await this.measurementRepository.findOne({ where: { measure_uuid: measureUUID } });
 
         if (!measurement) {
-            throw new NotFoundException('Measurement not found');
+            throw new NotFoundException(
+                {
+                    "error_code": "MEASURE_NOT_FOUND",
+                    "error_description": "Leitura do mês já realizada"
+                }
+            );
         }
 
         if (measurement.has_confirmed) {
-            throw new ConflictException('Measurement already confirmed');
+            throw new ConflictException(
+                {
+                    "error_code":
+                        "CONFIRMATION_DUPLICATE",
+                    "error_description": "Leitura do mês já realizada"
+                }
+            );
         }
 
-        measurement.measure_value = confirmedValue;
-        measurement.has_confirmed = true;
+        await this.measurementRepository.update(
+            { measure_uuid: measureUUID },
+            { measure_value: confirmedValue, has_confirmed: true }
+        );
 
-        await this.measurementRepository.save(measurement);
+
+        return { success: true }
     }
 
-    async listMeasurements(customerCode: string, measureType?: 'WATER' | 'GAS'): Promise<Measurement[]> {
-        const customer = await this.measurementRepository.findOne({ where: { customer_code: customerCode } });
-        if (!customer) {
-            throw new NotFoundException('Customer not found');
+    async listMeasurements(customerCode: string, measureType?: 'WATER' | 'GAS'): Promise<ListMeasuresOutputDto> {
+        const { customer_code } = await this.measurementRepository.findOne({ where: { customer_code: customerCode } });
+        if (!customer_code) {
+            throw new NotFoundException(
+                {
+                    "error_code": "CUSTOMER_NOT_FOUND",
+                    "error_description": "Customer not found"
+                }
+            );
+        }
+
+        const replaceMeasureType = measureType.toLocaleUpperCase()
+
+        if (measureType && !['WATER', 'GAS'].includes(replaceMeasureType)) {
+            throw new BadRequestException(
+                {
+                    "error_code": "INVALID_TYPE",
+                    "error_description": "Tipo de medição não permitida"
+                }
+            );
         }
 
         const query = this.measurementRepository.createQueryBuilder('measurement')
-            .where('measurement.customer = :customer', { customer });
+            .where('measurement.customer_code = :customer_code', { customer_code });
 
         if (measureType) {
-            query.andWhere('measurement.measure_type = :measureType', { measureType });
+            query.andWhere('measurement.measure_type = :replaceMeasureType', { replaceMeasureType });
         }
 
         const measurements = await query.getMany();
         if (measurements.length === 0) {
-            throw new NotFoundException('No measurements found');
+            throw new NotFoundException(
+                {
+                    "error_code": "MEASURES_NOT_FOUND",
+                    "error_description": "Nenhuma leitura encontrada"
+                }
+            );
         }
 
-        return measurements;
+        return {
+            customer_code: customerCode,
+            measures: measurements
+        };
     }
 }
