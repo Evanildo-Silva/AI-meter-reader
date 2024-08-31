@@ -1,14 +1,21 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
-import { Measurement } from './entities/measurement.entity';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UsePipes } from '@nestjs/common';
+import { CustomValidationPipe } from 'src/utils/customValidationPipes';
+import { ConfirmMeasureOutputDto } from './dto/confirm-measure-output.dto';
+import { ListMeasuresOutputDto } from './dto/list-measures-output.dto';
+import { UploadMeasureOutputDto } from './dto/upload-measure-output.dto';
+import { UploadMeasureDto } from './dto/upload-measure.dto';
 import { IMeasurement } from './interfaces/measurement.interface';
 import { MeasurementService } from './measurement.service';
 
-@Controller('measurements')
+@Controller('/')
 export class MeasurementController {
-    constructor(private readonly measurementService: MeasurementService) { }
+    constructor(
+        private readonly measurementService: MeasurementService,
+    ) { }
 
     @Post('upload')
-    async uploadMeasurement(@Body() body: Omit<IMeasurement, "measure_uuid" | "measure_value" | "has_confirmed">): Promise<Measurement> {
+    @UsePipes(new CustomValidationPipe())
+    async uploadMeasurement(@Body() body: UploadMeasureDto): Promise<UploadMeasureOutputDto> {
         const { customer_code, measure_datetime, measure_type, image } = body;
         return this.measurementService.createMeasurement({
             customer_code, measure_datetime, measure_type, image,
@@ -17,8 +24,9 @@ export class MeasurementController {
 
     @Patch('confirm')
     @HttpCode(HttpStatus.OK)
-    async confirmMeasurement(@Body() body: Pick<IMeasurement, "measure_uuid"> & { confirmed_value: number }): Promise<void> {
+    async confirmMeasurement(@Body() body: Pick<IMeasurement, "measure_uuid"> & { confirmed_value: number }): Promise<ConfirmMeasureOutputDto> {
         const { measure_uuid, confirmed_value } = body;
+
         return this.measurementService.confirmMeasurement(measure_uuid, confirmed_value);
     }
 
@@ -26,7 +34,7 @@ export class MeasurementController {
     async listMeasurements(
         @Param('customer_code') customerCode: string,
         @Query('measure_type') measureType?: 'WATER' | 'GAS',
-    ): Promise<Measurement[]> {
+    ): Promise<ListMeasuresOutputDto> {
         return this.measurementService.listMeasurements(customerCode, measureType);
     }
 }
