@@ -9,7 +9,7 @@ services:
       - PORT=${PORT}
       - DB_HOST=db
       - DB_USERNAME=${DB_USERNAME}
-      - DB_PASSWORD=readerdbpassword
+      - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=${DB_PORT}
       - DB_DATABASE=${DB_DATABASE}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
