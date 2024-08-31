@@ -1,5 +1,5 @@
 import { IsDateString, IsEnum, IsNotEmpty, IsString, Validate } from 'class-validator';
-import { IsBase64Validator } from 'src/utils/IsBase64Validator';
+import { IsBase64Validator } from '../../utils/IsBase64Validator';
 
 export class UploadMeasureDto {
     @IsNotEmpty()

@@ -1,9 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { saveBase64Image } from 'src/utils/saveBase64Image';
-import { prompt } from 'src/utils/stringPrompts';
 import { Between, Repository } from 'typeorm';
+import { saveBase64Image } from '../utils/saveBase64Image';
+import { prompt } from '../utils/stringPrompts';
 import { ConfirmMeasureOutputDto } from './dto/confirm-measure-output.dto';
 import { ListMeasuresOutputDto } from './dto/list-measures-output.dto';
 import { UploadMeasureOutputDto } from './dto/upload-measure-output.dto';

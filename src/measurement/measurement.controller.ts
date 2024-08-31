@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UsePipes } from '@nestjs/common';
-import { CustomValidationPipe } from 'src/utils/customValidationPipes';
+import { CustomValidationPipe } from '../utils/customValidationPipes';
 import { ConfirmMeasureOutputDto } from './dto/confirm-measure-output.dto';
 import { ListMeasuresOutputDto } from './dto/list-measures-output.dto';
 import { UploadMeasureOutputDto } from './dto/upload-measure-output.dto';
